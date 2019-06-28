@@ -34,7 +34,7 @@ mov %sp,%bp
 
 mov $50,%cx
 mov $0x0007,%bx 
-mov %ax,%bp  
+mov $msg1,%bp  
 int $0x10
 
 mov %bp,%sp
