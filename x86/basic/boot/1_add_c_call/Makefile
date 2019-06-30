@@ -2,29 +2,49 @@
 
 
 CC=gcc
-CCFLAGS=-O2 -Wall -nostdlib -fPIC
+CCFLAGS=-O2 -Wall -nostdlib -fPIC -g -ffreestanding
 LD=ld
-CFLAGS:= -ffreestanding
-#LDFLAGS:= -static -nostartfiles -Ttext=0x40000000
-LDFLAGS=-m elf_x86_64 -Ttext 0
+LDFLAGS:= --oformat binary -N 
+#-static -nostartfiles -Ttext=0x40000000
+LDFLAGS=-m elf_x86_64 -s -x
 AS=as
 ASFLAGS=
+DD=dd
 OBJCOPY=objcopy
-INCLUDE=-I./
-TARGET=boot.bin
-OBJS=boot.s
+INCLUDE=-Iinclude
+BOOTSEG=0x7c00
+INITSEG=0
+TARGET=Image
+#OBJS=boot.s setup.s
 OBJC=main.c
 
 .c.o: 
-	$(CC) $(CCFLAGS) -c -o $*.o $<
+	$(CC) $(CCFLAGS) $(INCLUDE) -c -o $*.o $<
 
 .s.o: 
-	$(AS) $(ASFLAGS) -o $*.o $<
+	$(AS) $(ASFLAGS) -c  -o $*.o $<
 
-$(TARGET): ${OBJC:%.c=%.o} ${OBJS:%.s=%.o}
-	$(LD) $(LDFLAGS) -o $(TARGET) ${OBJS:%.s=%.o} ${OBJC:%.c=%.o}
-	$(OBJCOPY) -O binary $(TARGET)
+all: $(TARGET)
+
+$(TARGET): boot system 
+	$(DD) if=boot of=$(TARGET) ibs=512 count=1 conv=notrunc
+	$(DD) if=system of=$(TARGET) ibs=512 seek=1 #count=2879
+	#rm temp.img
+
+system: ${OBJC:%.c=%.o} setup.o
+	$(LD) $(LDFLAGS) -Ttext $(INITSEG)  -o system setup.o ${OBJC:%.c=%.o}
+
+boot: boot.o
+	$(LD) $(LDFLAGS) -Ttext 0 -o boot $<
+	$(OBJCOPY) -O binary boot
+
+tools/build: tools/build.c
+	$(CC) $(CFLAGS) \
+		        -o tools/build tools/build.c
+	#chmem +65000 tools/build
 
 clean:
 	rm *.o
+	rm boot
+	rm system
 	rm $(TARGET)
