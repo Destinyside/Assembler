@@ -14,9 +14,11 @@ DD=dd
 OBJCOPY=objcopy
 INCLUDE=-Iinclude
 BOOTSEG=0x7c00
-
-INITSEG=0x10000
-TARGET=Image
+ISO_DIR=iso
+ISO_BOOT=$(ISO_DIR)/boot
+GRUB_CONFIG=$(ISO_BOOT)/grub/grub.cfg
+INITSEG=0x1000
+TARGET=System
 #OBJS=boot.s setup.s
 OBJC=main.c
 
@@ -26,19 +28,24 @@ OBJC=main.c
 .s.o: 
 	$(AS) $(ASFLAGS) -c  -o $*.o $<
 
-all: $(TARGET)
+all: $(TARGET).iso
 
-$(TARGET): system 
-	$(DD) if=/dev/zero of=$(TARGET) bs=512 count=1
-	$(DD) if=system of=$(TARGET) bs=512 count=9 seek=1
-	$(DD) if=/dev/zero of=$(TARGET) bs=512 count=65526 seek=10
-	#rm temp.img
+$(TARGET).iso: system
+	cp $< $(ISO_BOOT)/
+	echo 'set timeout=10 ' 			>$(GRUB_CONFIG)
+	echo 'set default=0'  			>> $(GRUB_CONFIG)
+	echo ''               			>> $(GRUB_CONFIG)
+	echo 'menuentry "$(TARGET) OS" {'       >> $(GRUB_CONFIG)
+	echo '  multiboot2 /boot/system'    	>> $(GRUB_CONFIG)
+	echo '  boot'                           >> $(GRUB_CONFIG)
+	echo '}'                                >> $(GRUB_CONFIG)
+	grub-mkrescue -o $@ $(ISO_DIR)
 
 system: ${OBJC:%.c=%.o} entry.o
-	$(LD) $(LDFLAGS) -Ttext $(INITSEG) -o system entry.o ${OBJC:%.c=%.o}
-	$(OBJCOPY) -O binary -R .note -R .comment system system
+	$(LD) $(LDFLAGS) -T ldS.ld -o system entry.o ${OBJC:%.c=%.o}
+	#$(OBJCOPY) -O binary -R .note -R .comment system system
 
 clean:
 	rm *.o
 	rm system
-	rm $(TARGET)
+	rm *.iso
